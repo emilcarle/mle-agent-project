@@ -15,7 +15,7 @@ class OperationsData:
                  tickets: list[dict[str, Any]],
                  customers: list[dict[str, Any]],
                  availability: list[dict[str, Any]],
-                 memory: list[dict[str, Any]],
+                 memory: dict[str, Any],
                  chunks: list[dict[str, Any]],
                  threshold: float
                  ):
@@ -29,7 +29,7 @@ class OperationsData:
         self.top_k = TOP_K
 
     def get_ticket(self, ticket_id: str) -> dict[str, Any]:
-        """Return the ticket from the given ticket_id."""
+        """Return the ticket details from a given ticket_id."""
 
         for ticket in self.tickets:
             if ticket["ticket_id"] == ticket_id:
@@ -39,7 +39,7 @@ class OperationsData:
         )
         
     def get_customer_context(self, customer_id: str) -> dict[str, Any]:
-        """Return the customer details from the given customer_id."""
+        """Return the customer details from a given customer_id."""
 
         for customer in self.customers:
             if customer["customer_id"] == customer_id:
@@ -49,7 +49,7 @@ class OperationsData:
         )
         
     def search_policy(self, query: str) -> list[dict[str, Any]]:
-        """Return the top_k most relevant document chunks for the given query."""
+        """Return the top_k most relevant document chunks for a given ticket text body."""
 
         query_embedding = embed_texts(query)[0]
         for chunk in self.document_chunks:
@@ -60,7 +60,13 @@ class OperationsData:
             raise ModelRetry(
                 f"No relevant policy documents found for query: {query}."
             )
-        return [chunk for chunk in sorted(self.document_chunks, key=lambda x: x["similarity"], reverse=True)[:self.top_k] if chunk["similarity"] > self.threshold]
+        selected_chunks = [chunk for chunk in sorted(self.document_chunks, key=lambda x: x["similarity"], reverse=True)[:self.top_k] if chunk["similarity"] > self.threshold]
+        return [
+            {
+                key: value for key, value in chunk.items() if key != "vector"}
+                for chunk in selected_chunks
+            ]
+
         
     def check_availability(self, queue: str) -> dict[str, Any]:
         """Find the responsible owner and their details for a handoff based on the queue."""
@@ -108,3 +114,11 @@ class OperationsData:
         return (
             f"Escalate {ticket_id} to {queue} ({owner}) with evidence {citation_text}."
         )
+        
+    def access_memory(self, customer_id: str) -> dict[str, Any]:
+        """Extracts a memory-log of a conversation based on a costumer_id."""
+        if customer_id != self.memory['last_customer_id']:
+            raise RuntimeError(
+                f"No cases relating to customer_id {customer_id} found in memory."
+            )
+        return self.memory
